@@ -1,0 +1,151 @@
+/*
+ * MotorCodeUARTReceive10bit.c
+ *
+ * Created: 1/31/2019 12:06:21 AM
+ * Author : DELL
+ */ 
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <math.h>
+
+uint8_t receiveval, x1, x2, y1, y2;
+uint16_t fin,x,y;
+int pwmx,pwmy,a,b,q;
+
+int octant(int p, int q)
+{
+	int c=0;
+	if(p==0 && q==0) c=0;
+	else if(p>=0 && q<=0)
+	{
+		if(p+q>0) c=1;
+		else c=2;
+	}
+	else if(p<=0 && q<=0)
+	{
+		if(p-q>0) c=3;
+		else c=4;
+	}
+	else if(p<=0 && q>0)
+	{
+		if(p+q>0) c=6;
+		else c=5;
+	}
+	else if(p>=0 && q>0)
+	{
+		if(p-q>0) c=8;
+		else c=7;
+	}
+	return c;
+}
+
+void direction(int z)
+{
+	if(z==5) z=8;
+	else if(z==8) z=5;
+	
+	if(z==0)
+	{
+		PORTB &= ~(1<<PINB0);
+		PORTB &= ~(1<<PINB1);
+	}
+	else if(z==1 || z==5)
+	{
+		PORTB &= ~(1<<PINB0);
+		PORTB |= (1<<PINB1);
+	}
+	else if(z==2 || z==3)
+	{
+		PORTB |= (1<<PINB0);
+		PORTB |= (1<<PINB1);
+	}
+	else if(z==4 || z==8)
+	{
+		PORTB |= (1<<PINB0);
+		PORTB &= ~(1<<PINB1);
+	}
+	else if(z==6 || z==7)
+	{
+		PORTB &= ~(1<<PINB0);
+		PORTB &= ~(1<<PINB1);
+	}
+}
+
+void UART_Initialize(unsigned int UBRR_value)
+{
+	UBRRH |= (unsigned char)(UBRR_value>>8);
+	UBRRL |= (unsigned char)UBRR_value;
+	UCSRB |= (1<<RXEN) | (1<<TXEN);
+	UCSRC |= (1<<URSEL) | (1<<USBS) | (1 << UCSZ1) | (1 << UCSZ0);
+}
+
+unsigned char UART_Receive()
+{
+	while(!(UCSRA & (1<<RXC)));
+	unsigned char receivedata = UDR;
+	return receivedata;
+}
+
+int main(void)
+{
+	TCCR1A|= (1<<WGM10)|(1<<WGM11)|(1<<COM1A1)|(1<<COM1B1);
+	TCCR1B|= (1<<WGM12)|(1<<CS10);
+	DDRD |= 1<<PIND4; //right
+	DDRD |= 1<<PIND5; //left
+	DDRB |= 1<<PINB0 | 1<<PINB1;
+	PORTB &= ~(1<<PINB0); //right
+	PORTB &= ~(1<<PINB1); //left
+	
+	UART_Initialize(12);
+	
+	while (1)
+	{
+		receiveval = UART_Receive();
+		if((receiveval & 0b00000011)==0b00000000)
+		{
+			x1=receiveval;
+			x1=x1>>2;
+		}
+		else if((receiveval & 0b00000011)==0b00000001)
+		{
+			x2=receiveval;
+			x2=x2>>2;
+		}
+		else if((receiveval & 0b00000011)==0b00000010)
+		{
+			y1=receiveval;
+			y1=y1>>2;
+		}
+		else if((receiveval & 0b00000011)==0b00000011)
+		{
+			y2=receiveval;
+			y2=y2>>2;
+		}
+		
+		x=x2;
+		x=x<<6 | x1;
+		y=y2;
+		y=y<<6 | y1;
+		pwmx=((x*2)-1024);
+		pwmy=((y*2)-1024);
+		
+		{
+			a=abs(pwmx);
+			b=abs(pwmy);
+			if(a<100) pwmx=0;
+			if(b<100) pwmy=0;
+			
+			q=octant(pwmx,pwmy);
+			direction(q);
+			
+			a=abs(pwmx+pwmy);
+			b=abs(pwmx-pwmy);
+			if(a>1000) a=1023;
+			if(b>1000) b=1023;
+			
+			OCR1A=(a); //right
+			OCR1B=(b); //left
+		}
+	}
+}

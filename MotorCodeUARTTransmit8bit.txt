@@ -1,0 +1,72 @@
+/*
+ * MotorCodeUARTTransmit8bit.c
+ *
+ * Created: 1/30/2019 11:43:24 PM
+ * Author : DELL
+ */ 
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <math.h>
+
+int x,y;
+int joyval;
+
+void ADC_Initialize()
+{
+	ADCSRA |= 1<<ADIE;
+	ADMUX |= 1<<REFS0;
+	ADMUX |= 1<<ADLAR;
+	ADCSRA |= 1<<ADEN;
+	sei();
+	ADCSRA |= 1<<ADSC;
+}
+
+void UART_Initialize(unsigned int UBRR_value)
+{
+	UBRRH |= (unsigned char)(UBRR_value>>8);
+	UBRRL |= (unsigned char)UBRR_value;
+	UCSRB |= (1<<RXEN) | (1<<TXEN);
+	UCSRC |= (1<<URSEL) | (1<<USBS) | (1 << UCSZ1) | (1 << UCSZ0);
+}
+
+void UART_Transmit(unsigned char data)
+{
+	while(!(UCSRA & (1<<UDRE)));
+	UDR = data;
+	PORTC |= 1<<PINC0;
+}
+
+int main(void)
+{
+	DDRB |= 1<<PINC0;
+	PORTC &= ~(1<<PINC0);
+	
+	ADC_Initialize();
+	UART_Initialize(103);
+	
+	while (1)
+	{
+	}
+}
+
+ISR(ADC_vect)
+{
+	joyval=ADCH;
+	
+	switch(ADMUX)
+	{
+		case 0x60:
+		x=(joyval|0b00000001);
+		UART_Transmit(x);
+		ADMUX = 0x61;
+		break;
+		case 0x61:
+		y=(joyval & 0b11111110);
+		UART_Transmit(y);
+		ADMUX = 0x60;
+		break;
+	}
+	
+	ADCSRA |= 1<<ADSC;
+}
