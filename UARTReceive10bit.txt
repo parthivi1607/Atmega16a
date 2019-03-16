@@ -1,0 +1,73 @@
+/*
+ * UART10bitReceive.c
+ *
+ * Created: 1/31/2019 6:45:41 PM
+ * Author : DELL
+ */ 
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+
+uint8_t receiveval, x1, x2, y1, y2, pwmx, pwmy;
+uint16_t fin,x,y;
+
+void UART_Initialize(unsigned int UBRR_value)
+{
+	UBRRH |= (unsigned char)(UBRR_value>>8);
+	UBRRL |= (unsigned char)UBRR_value;
+	UCSRB |= (1<<RXEN) | (1<<TXEN);
+	UCSRC |= (1<<URSEL) | (1<<USBS) | (1 << UCSZ1) | (1 << UCSZ0);
+}
+
+unsigned char UART_Receive()
+{
+	while(!(UCSRA & (1<<RXC)));
+	unsigned char receivedata = UDR;
+	PORTC |= 1<<PINC0;
+	return receivedata;
+}
+
+int main(void)
+{
+    TCCR0 |= 1<<WGM00 | 1<<WGM01 | 1<<COM01 | 1<<CS00;
+    TCCR2 |= 1<<WGM20 | 1<<WGM21 | 1<<COM21 | 1<<CS20;
+    DDRB |= 1<<PINB3;
+    DDRD |= 1<<PIND7;
+	
+	UART_Initialize(25);
+	
+    while (1) 
+    {
+		receiveval = UART_Receive();
+		if((receiveval & 0b00000011)==0b00000000) 
+		{
+			x1=receiveval;
+			x1=x1>>2;
+		}
+		else if((receiveval & 0b00000011)==0b00000001) 
+		{
+			x2=receiveval;
+			x2=x2>>2;
+		}
+		else if((receiveval & 0b00000011)==0b00000010) 
+		{
+			y1=receiveval;
+			y1=y1>>2;
+		}
+		else if((receiveval & 0b00000011)==0b00000011) 
+		{
+			y2=receiveval;
+			y2=y2>>2;
+		}
+		
+		x=x2;
+		x=x<<6 | x1;
+		y=y2;
+		y=y<<6 | y1;
+		pwmx=((x/2)-256);
+		pwmy=((y/2)-256);
+		
+		OCR0=pwmx;
+		OCR2=pwmy;
+    }
+}

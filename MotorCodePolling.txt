@@ -1,0 +1,138 @@
+/*
+ * MotorCodePolling.c
+ *
+ * Created: 1/30/2019 11:34:14 PM
+ * Author : DELL
+ */ 
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <math.h>
+
+int q,a,b;
+int x,y;
+int res;
+int lv;
+int joyval;
+
+int octant(int p, int q)
+{
+	int c=0;
+	if(p==0 && q==0) c=0;
+	else if(p>=0 && q<=0)
+	{
+		if(p+q>0) c=1;
+		else c=2;
+	}
+	else if(p<=0 && q<=0)
+	{
+		if(p-q>0) c=3;
+		else c=4;
+	}
+	else if(p<=0 && q>0)
+	{
+		if(p+q>0) c=6;
+		else c=5;
+	}
+	else if(p>=0 && q>0)
+	{
+		if(p-q>0) c=8;
+		else c=7;
+	}
+	return c;
+}
+
+void direction(int z)
+{
+	if(z==5) z=8;
+	else if(z==8) z=5;
+	
+	if(z==0)
+	{
+		PORTB &= ~(1<<PINB0);
+		PORTB &= ~(1<<PINB1);
+	}
+	else if(z==1 || z==5)
+	{
+		PORTB &= ~(1<<PINB1);
+		PORTB |= (1<<PINB0);
+	}
+	else if(z==2 || z==3)
+	{
+		PORTB |= (1<<PINB0);
+		PORTB |= (1<<PINB1);
+	}
+	else if(z==4 || z==8)
+	{
+		PORTB |= (1<<PINB1);
+		PORTB &= ~(1<<PINB0);
+	}
+	else if(z==6 || z==7)
+	{
+		PORTB &= ~(1<<PINB0);
+		PORTB &= ~(1<<PINB1);
+	}
+}
+
+int main(void)
+{
+	TCCR0 |= 1<<WGM00 | 1<<WGM01 | 1<<COM01 | 1<<CS00;
+	TCCR2 |= 1<<WGM20 | 1<<WGM21 | 1<<COM21 | 1<<CS20;
+	DDRB |= 1<<PINB3; //right
+	DDRD |= 1<<PIND7; //left
+	DDRB |= 1<<PINB0 | 1<<PINB1;
+	PORTB &= ~(1<<PINB0); //right
+	PORTB &= ~(1<<PINB1); //left
+	
+	ADMUX |= 1<<REFS0;
+	ADMUX |= 1<<ADLAR;
+	ADCSRA |= 1<<ADEN | 1<<ADPS2;
+	ADCSRA|=(1<<ADSC);
+	
+	while (1)
+	{
+		while(!(ADCSRA & (1<<ADIF)));
+		
+		lv=ADCL;
+		res = (ADCH<<2 | lv>>6);
+		joyval=(res/4-128);
+		if(abs(joyval)<=30)
+		{
+			joyval=0;
+		}
+		
+		switch(ADMUX)
+		{
+			case 0x60:
+			x = (joyval);
+			ADMUX = 0x61;
+			break;
+			
+			case 0x61:
+			y = (joyval);
+			ADMUX = 0x60;
+			break;
+		}
+		
+		if(ADMUX == 0x60)
+		{
+			a=abs(x);
+			b=abs(y);
+			if(a<20) x=0;
+			if(b<20) y=0;
+			
+			q=octant(x,y);
+			direction(q);
+			
+			a=abs(x+y);
+			b=abs(x-y);
+			if(a>255) a=255;
+			if(b>255) b=255;
+			
+			OCR0=b; //right
+			OCR2=a; //left
+		}
+		
+		ADCSRA |= 1<<ADSC;
+	}
+}

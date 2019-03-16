@@ -1,0 +1,98 @@
+/*
+ * SPISlaveGame.c
+ *
+ * Created: 2/8/2019 8:31:42 PM
+ * Author : DELL
+ */ 
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+#include <stdlib.h>
+
+uint8_t data,rec;
+int i,flag=0;
+int lastButton=0;
+int currentButton=0;
+
+int debounce(int last)
+{
+	int current = ((PIND & (1<<PIND7))>>PIND7);
+	if(current != last)
+	{
+		_delay_ms(5);
+		current = ((PIND & (1<<PIND7))>>PIND7);
+	}
+	return current;
+}
+
+void blink(int x)
+{
+	i=1;
+	while(i<=x)
+	{
+		PORTC ^= 1<<PINC0;
+		_delay_ms(100);
+		PORTC ^= (1<<PINC0);
+		_delay_ms(100);
+		i++;
+	}
+}
+
+void SPI_SlaveInit()
+{
+	//MISO output, others input
+	DDRB |= (1<<PINB6);
+	DDRB &= ~(1<<PINB5);
+	DDRB &= ~(1<<PINB7);
+	DDRB &= ~(1<<PINB4);
+	SPCR = (1<<SPE) | (1<<DORD) | (1<<CPHA); //enable SPI
+}
+
+void SPI_SlaveTransmit(uint8_t x)
+{
+	if(x == 0b00001110) blink(3);
+	SPDR = x; //start transmission
+	while(!(SPSR & (1<<SPIF))); //wait for transmission to complete
+}
+
+uint8_t SPI_SlaveReceive()
+{
+	while(!(SPSR & (1<<SPIF))); //wait for receive complete
+	rec = SPDR;
+	if(rec == 0b00001111)
+	{
+		blink(2);
+	}
+	return rec;
+}
+
+void button()
+{
+	currentButton = debounce(lastButton);
+	if(currentButton==0 && lastButton==1)
+	{
+		SPI_SlaveTransmit(0b00001110);
+	}
+	else
+	{
+		data = SPI_SlaveReceive();
+		SPI_SlaveTransmit(0b00000000);
+	}
+	lastButton=currentButton;
+}
+
+int main(void)
+{
+    DDRC |= 1<<PINC0;
+    PORTC &= ~(1<<PINC0);
+    DDRD &= ~(1<<PIND7); //switch input
+    PORTD |= 1 << PIND7; //set to high
+	
+	SPI_SlaveInit();
+	
+	while (1) 
+    {
+		button();
+    }
+}

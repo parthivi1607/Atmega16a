@@ -1,0 +1,32 @@
+/*
+ * ParthiviUARTRecieve.c
+ *
+ * Created: 1/26/2019 5:27:19 PM
+ * Author : Ajay Indran
+ */ 
+
+#include <avr/io.h>
+
+
+int main(void)
+{
+    DDRC |= 1<<PINC0;
+	PORTC &= ~(1<<PINC0);
+	
+	//comm specifictions
+	unsigned int UBRR_value = 25;//for 2400 baud
+	UBRRH = (unsigned char)(UBRR_value>>8);
+	UBRRL = (unsigned char)UBRR_value;
+	UCSRB = (1<<RXEN) | (1<<TXEN);
+	UCSRC = (1<<URSEL) | (1<<USBS) | (3<<UCSZ0);
+	
+	unsigned char receivedata;
+	
+    while (1) 
+    {
+		while(!(UCSRA & (1<<RXC)));
+		receivedata = UDR;
+		if(receivedata == 1) PORTC |= 1<<PINC0;
+		else PORTC &= ~(1<<PINC0);
+    }
+}

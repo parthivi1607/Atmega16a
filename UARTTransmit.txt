@@ -1,0 +1,30 @@
+/*
+ * ParthiviUARTTransmit.c
+ *
+ * Created: 1/26/2019 4:39:40 PM
+ * Author : Ajay Indran
+ */ 
+
+#include <avr/io.h>
+
+
+int main(void)
+{
+    //initializatin of led
+	DDRC |= 1<<PINC0;
+	PORTC &= ~(1<<PINC0);
+	
+	//comm specifications
+	int UBRR_value = 25; //for baud=2400
+	UBRRH |= (unsigned char)(UBRR_value>>8);
+	UBRRL |= (unsigned char)UBRR_value;
+	UCSRB |= (1<<RXEN) | (1<<TXEN);
+	UCSRC |= (1<<URSEL) | (1<<USBS) | (1 << UCSZ1) | (1 << UCSZ0);
+	
+    while (1) 
+    {
+		while(!(UCSRA & (1<<UDRE)));
+		UDR = 1;
+		PORTC |= 1<<PINC0;
+    }
+}

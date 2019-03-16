@@ -1,0 +1,82 @@
+/*
+ * SPITransmit.c
+ *
+ * Created: 2/3/2019 5:54:16 PM
+ * Author : DELL
+ */ 
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+#include <stdlib.h>
+
+uint8_t data;
+int i;
+int lastButton=0;
+int currentButton=0;
+
+int debounce(int last)
+{
+	int current = ((PIND & (1<<PIND7))>>PIND7);
+	if(current != last)
+	{
+		_delay_ms(5);
+		current = ((PIND & (1<<PIND7))>>PIND7);
+	}
+	return current;
+}
+
+void button()
+{
+	currentButton = debounce(lastButton);
+	if(currentButton==0 && lastButton==1)
+	{
+		SPI_MasterTransmit(0b00000011);
+	}
+	lastButton=currentButton;
+}
+
+void blink(int x)
+{
+	i=1;
+	while(i<=x)
+	{
+		PORTC |= 1<<PINC0;
+		_delay_ms(100);
+		PORTC &= ~(1<<PINC0);
+		_delay_ms(100);
+		i++;
+	}
+}
+
+void SPI_MasterInit()
+{
+	DDRB = (1<<PINB5) | (1<<PINB7) | (1<<PINB4); //output
+	DDRB &= ~(1<<PINB6); //input
+	SPCR = (1<<SPE) | (1<<MSTR) | (1<<SPR0) | (1<<DORD); //enable SPI
+}
+
+void SPI_MasterTransmit(uint8_t data)
+{
+	PORTB &= ~(1<<PINB4); //pulling SS low
+	SPDR = data; //start transmission
+	while(!(SPSR & (1<<SPIF))); //wait for transmission to complete
+	PORTB |= (1<<PINB4);
+	if(data == 0b00000011) blink(1);
+}
+
+int main(void)
+{
+    DDRC |= 1<<PINC0; //led output
+    PORTC &= ~(1<<PINC0); //led off
+	DDRD &= ~(1<<PIND7); //switch input
+	PORTD |= 1 << PIND7; //set to high
+	
+	SPI_MasterInit();
+	//button();
+	
+    while (1) 
+    {
+		button();
+    }
+}

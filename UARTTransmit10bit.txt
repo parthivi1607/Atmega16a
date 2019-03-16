@@ -1,0 +1,83 @@
+/*
+ * UART10bitTransmit.c
+ *
+ * Created: 1/31/2019 1:02:49 AM
+ * Author : DELL
+ */ 
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+
+uint8_t x1,x2,y1,y2;
+uint16_t res;
+uint8_t v1,v2,joyval,lv;
+
+void ADC_Initialize()
+{
+	ADCSRA |= 1<<ADIE;
+	ADMUX |= 1<<REFS0;
+	ADMUX |= 1<<ADLAR;
+	ADCSRA |= 1<<ADEN;
+	sei();
+	ADCSRA |= 1<<ADSC;
+}
+
+void UART_Initialize(unsigned int UBRR_value)
+{
+	UBRRH |= (unsigned char)(UBRR_value>>8);
+	UBRRL |= (unsigned char)UBRR_value;
+	UCSRB |= (1<<RXEN) | (1<<TXEN);
+	UCSRC |= (1<<URSEL) | (1<<USBS) | (1 << UCSZ1) | (1 << UCSZ0);
+}
+
+void UART_Transmit(unsigned char data)
+{
+	while(!(UCSRA & (1<<UDRE)));
+	UDR = data;
+	PORTC |= 1<<PINC0;
+}
+
+int main(void)
+{
+	DDRB |= 1<<PINC0;
+	PORTC &= ~(1<<PINC0);
+	
+	ADC_Initialize();
+	UART_Initialize(25);
+	
+	while (1)
+	{
+	}
+}
+
+ISR(ADC_vect)
+{
+	lv = ADCL;
+	res = (ADCH<<2 | lv>>6);
+	joyval = res; //8bits --------
+	v1=joyval<<2; //6bits ------00
+	joyval=res>>6; //4bits 0000----
+	v2=joyval<<2; //4bits 00----00
+	
+	switch(ADMUX)
+	{
+		case 0x60:
+		x1=(v1 | 0b00000000); //6bits
+		x2=(v2 | 0b00000001); //4bits
+		UART_Transmit(x1);
+		UART_Transmit(x2);
+		ADMUX = 0x61;
+		break;
+		
+		case 0x61:
+		y1=(v1 | 0b00000010);
+		y2=(v2 | 0b00000011);
+		UART_Transmit(y1); 
+		UART_Transmit(y2);
+		ADMUX = 0x60;
+		break;
+	}
+	PORTC &= ~(1<<PINC0);
+	
+	ADCSRA |= 1<<ADSC;
+}

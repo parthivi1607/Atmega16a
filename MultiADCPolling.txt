@@ -1,0 +1,44 @@
+/*
+ * MultiADCPolling.c
+ *
+ * Created: 1/30/2019 11:32:07 PM
+ * Author : DELL
+ */ 
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+
+int main(void)
+{
+	TCCR0 |= 1<<WGM00 | 1<<WGM01 | 1<<COM01 | 1<<CS00;
+	DDRB |= 1<<PINB3;
+	TCCR2 |= 1<<WGM20 | 1<<WGM21 | 1<<COM21 | 1<<CS20;
+	DDRD |= 1<<PIND7;
+	
+	ADMUX |= 1<<REFS0;
+	ADMUX |= 1<<ADLAR;
+	ADCSRA |= 1<<ADEN | 1<<ADPS2;
+	ADCSRA|=(1<<ADSC);
+	
+	
+	while (1)
+	{
+		while(!(ADCSRA & (1<<ADIF)));
+		
+		uint8_t res=ADCH;
+		
+		switch(ADMUX)
+		{
+			case 0x60:
+			OCR0=res;
+			ADMUX = 0x61;
+			break;
+			case 0x61:
+			OCR2=res;
+			ADMUX = 0x60;
+			break;
+		}
+		
+		ADCSRA|=(1<<ADSC);
+	}
+}

@@ -1,0 +1,60 @@
+/*
+ * TWISlave.c
+ *
+ * Created: 2/23/2019 6:38:09 PM
+ * Author : DELL
+ */ 
+
+#include <avr/io.h>
+#include <util/delay.h>
+
+void blink(int x)
+{
+	int i=0;
+	while(i<x)
+	{
+		PORTB ^= 1<<PINB0;
+		_delay_ms(100);
+		PORTB ^= 1<<PINB0;
+		_delay_ms(100);
+		i++;
+	}
+}
+
+void TWISlave_Init(void) // Function to initialize slave
+{
+	TWAR=0x10;    // Fill slave address to TWAR
+	TWCR = 1<<TWEN;
+}
+
+void TWI_read_address(void) //Function to match the slave address and slave direction bit(read)
+{
+	//Send acknowledgement, Enable TWI, Clear TWI interrupt flag
+	TWCR = (1<<TWEA)|(1<<TWINT)|(1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));  // Wait for TWINT flag
+	//while((TWSR & 0xF8)!=0x60);
+}
+
+void TWI_read_data(void)
+{
+	// Clear TWI interrupt flag, send acknowledgement, Enable TWI
+	TWCR = (1<<TWINT)|(1<<TWEA)|(1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));    // Wait for TWINT flag
+	//while((TWSR & 0xF8)!=0x80);        // Wait for acknowledgement
+	uint8_t data=TWDR;                    // Get value from TWDR
+	if(data==0b11110000) blink(1);
+}
+
+int main(void)
+{
+    DDRB |= 1<<PINB0;
+	PORTB &= ~(1<<PINB0);
+	
+	TWISlave_Init();
+	TWI_read_address();
+	
+    while (1)
+    {
+		TWI_read_data();
+    }
+}

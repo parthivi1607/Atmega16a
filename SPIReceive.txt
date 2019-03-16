@@ -1,0 +1,59 @@
+/*
+ * SPIReceive.c
+ *
+ * Created: 2/3/2019 5:55:03 PM
+ * Author : DELL
+ */ 
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+#include <stdlib.h>
+
+uint8_t data,rec;
+int i;
+
+void blink(int x)
+{
+	i=1;
+	while(i<=x)
+	{
+		PORTC |= 1<<PINC0;
+		_delay_ms(100);
+		PORTC &= ~(1<<PINC0);
+		_delay_ms(100);
+		i++;
+	}
+}
+
+void SPI_SlaveInit()
+{
+	//MISO output, others input
+	DDRB |= (1<<PINB6); 
+	DDRB &= ~(1<<PINB5);
+	DDRB &= ~(1<<PINB7);
+	DDRB &= ~(1<<PINB4);
+	SPCR = (1<<SPE) | (1<<SPR0) | (1<<DORD); //enable SPI
+}
+
+uint8_t SPI_SlaveReceive()
+{
+	while(!(SPSR & (1<<SPIF))); //wait for receive complete
+	rec = SPDR;
+	if(rec == 0b00000011) blink(2);
+	return rec;
+}
+
+int main(void)
+{
+	DDRC |= 1<<PINC0;
+	PORTC &= ~(1<<PINC0);
+	
+	SPI_SlaveInit();
+
+	while (1)
+	{
+		data = SPI_SlaveReceive();
+		PORTC &= ~(1<<PINC0);
+	}
+}

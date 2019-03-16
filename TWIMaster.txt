@@ -1,0 +1,104 @@
+/*
+ * TWIMaster.c
+ *
+ * Created: 2/23/2019 6:36:28 PM
+ * Author : DELL
+ */ 
+
+#include <avr/io.h>
+#include <util/delay.h>
+
+int i,flag=0;
+int lastButton=0;
+int currentButton=0;
+
+void blink(int x)
+{
+	i=0;
+	while(i<x)
+	{
+		PORTB ^= 1<<PINB0;
+		_delay_ms(100);
+		PORTB ^= 1<<PINB0;
+		_delay_ms(100);
+		i++;
+	}
+}
+
+int debounce(int last)
+{
+	int current = ((PIND & (1<<PIND7))>>PIND7);
+	if(current != last)
+	{
+		_delay_ms(5);
+		current = ((PIND & (1<<PIND7))>>PIND7);
+	}
+	return current;
+}
+
+void TWIMaster_Init()
+{
+	TWBR=0x47;    // Bit rate
+	TWSR=(0<<TWPS1)|(0<<TWPS0);    // Setting prescalar bits
+	TWCR = 1<<TWEN;
+}
+
+void TWI_start(void)
+{
+	// Clear TWI interrupt flag, Put start condition on SDA
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+	while(!(TWCR & (1<<TWINT))); // Wait till start condition is transmitted
+	//while((TWSR & 0xF8)!= 0x08); // Check if start is transmitted
+}
+
+void TWI_write_address(unsigned char addr)
+{
+	TWDR=addr;    // Address and read instruction
+	TWCR = (1<<TWINT)|(1<<TWEN);    // Clear TWI interrupt flag
+	while (!(TWCR & (1<<TWINT))); // Wait till complete TWDR byte received
+	//while((TWSR & 0xF8)!= 0x18);  // Check for the acknowledgement
+}
+
+void TWI_write_data(unsigned char data)
+{
+	if(data==0b11110000) blink(1);
+	TWDR=data;    // put data in TWDR
+	TWCR = (1<<TWINT)|(1<<TWEN);    // Clear TWI interrupt flag
+	while (!(TWCR & (1<<TWINT))); // Wait till complete TWDR byte transmitted
+	//while((TWSR & 0xF8) != 0x28); // Check for the acknowledgement
+}
+
+void TWI_stop(void)
+{
+	// Clear TWI interrupt flag, Put stop condition on SDA, Enable TWI
+	TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO);
+	//while(!(TWCR & (1<<TWINT)));  // Wait till stop condition is transmitted
+}
+
+void button()
+{
+	currentButton = debounce(lastButton);
+	if(currentButton==0 && lastButton==1)
+	{
+		TWI_start();
+		TWI_write_address(0x10);
+		TWI_write_data(0b11110000);
+		TWI_stop();
+	}
+	lastButton=currentButton;
+}
+
+int main(void)
+{
+    DDRB |= 1<<PINB0;
+	PORTB &= ~(1<<PINB0);
+	DDRD &= ~(1<<PIND7); //switch input
+	PORTD |= 1 << PIND7; //set to high
+	
+	TWIMaster_Init();
+	
+    while (1) 
+    {
+		button();
+    }
+}
