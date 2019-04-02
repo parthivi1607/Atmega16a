@@ -1,0 +1,142 @@
+/*
+ * TWIMasterGame.c
+ *
+ * Created: 2/24/2019 5:22:29 PM
+ * Author : DELL
+ */ 
+
+#include <avr/io.h>
+#include <util/delay.h>
+
+int i,flag=0;
+int lastButton=0;
+int currentButton=0;
+
+void blink(int x)
+{
+	i=0;
+	while(i<x)
+	{
+		PORTB ^= 1<<PINB0;
+		_delay_ms(500);
+		PORTB ^= 1<<PINB0;
+		_delay_ms(500);
+		i++;
+	}
+}
+
+int debounce(int last)
+{
+	int current = ((PIND & (1<<PIND7))>>PIND7);
+	if(current != last)
+	{
+		_delay_ms(5);
+		current = ((PIND & (1<<PIND7))>>PIND7);
+	}
+	return current;
+}
+
+void TWI_Init()
+{
+	TWSR=0x00;
+	TWBR=0x00;    // Bit rate
+	TWCR = 1<<TWEN;
+}
+
+void TWI_start(void)
+{
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+	while(!(TWCR & (1<<TWINT))); // Wait till start condition is transmitted
+	//while((TWSR & 0xF8)!= 0x08); // Check if start is transmitted
+}
+
+void TWI_write_address(unsigned char addr)
+{
+	TWDR=addr;
+	TWCR = (1<<TWINT)|(1<<TWEN);    // Clear TWI interrupt flag
+	//TWDR=addr;
+	while (!(TWCR & (1<<TWINT))); // Wait till complete TWDR byte received
+	//while((TWSR & 0xF8)!= 0x18);  // Check for the acknowledgement
+}
+
+void TWI_write_data(unsigned char data)
+{
+	if(data==0b11110000)
+	{
+		blink(1);
+	}
+	TWDR=data;
+	TWCR = (1<<TWINT)|(1<<TWEN);    // Clear TWI interrupt flag
+	//TWDR=data;
+	while (!(TWCR & (1<<TWINT))); // Wait till complete TWDR byte transmitted
+	//while((TWSR & 0xF8) != 0x28); // Check for the acknowledgement
+}
+
+void TWI_stop(void)
+{
+	TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO);
+	//while(!(TWCR & (1<<TWINT)));  // Wait till stop condition is transmitted
+}
+
+void TWI_read_data(void)
+{
+	TWCR = (1<<TWINT)|(1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));    // Wait for TWINT flag
+	//while((TWSR & 0xF8)!=0x80);        // Wait for acknowledgment
+	uint8_t data=TWDR;                    // Get value from TWDR
+	if(data==0b00001111)
+	{
+		blink(4);
+	}
+}
+
+void button()
+{
+	currentButton = debounce(lastButton);
+	if(currentButton==0 && lastButton==1)
+	{
+		master(0b11110000);
+		slave();
+	}
+	else
+	{
+		master(0b00000000);
+		slave();
+	}
+	lastButton=currentButton;
+}
+
+void master(int val)
+{
+	TWI_Init();
+	TWI_start();
+	TWI_write_address(0b11000000);
+	TWI_write_data(val);
+	TWI_stop();
+}
+
+void slave()
+{
+	TWI_Init();
+	TWI_start();
+	TWI_write_address(0b11000001);
+	TWI_read_data();
+	TWI_stop();
+}
+
+int main(void)
+{
+	DDRB |= 1<<PINB0;
+	PORTB &= ~(1<<PINB0);
+	DDRB |= 1<<PINB1;
+	PORTB &= ~(1<<PINB1);
+	DDRD &= ~(1<<PIND7); //switch input
+	PORTD |= 1 << PIND7; //set to high
+	
+	TWI_Init();
+
+	while (1)
+	{
+		button();
+	}
+}
