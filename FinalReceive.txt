@@ -1,0 +1,495 @@
+/*
+ * nRFmotorcodeGearBJSlave.c
+ *
+ * Created: 4/2/2019 10:45:57 PM
+ * Author : DELL
+ */ 
+
+#include <avr/io.h>
+#include "C:\Users\DELL\Documents\Atmel Studio\7.0\Parthivi Atmega16a\nRF24L01+\nRF24L01+\library.c"
+#include <util/delay.h>
+
+uint16_t  x, y, m, n;
+int pwmx,pwmy,a,b,q;
+uint8_t status, gear;
+int xi=0, yi=0;
+uint16_t lastx=0, lasty=0;
+uint8_t receiveval;
+
+void send( uint8_t a) // just a helper function dont need to call it
+{
+	char  abc;
+	switch(a)
+	{
+		case 0: abc='0';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 1:abc='1';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 2:abc='2';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 3:abc='3';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 4:abc='4';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 5:abc='5';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 6:abc='6';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 7:abc='7';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 8:abc='8';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 9:abc='9';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 10:abc='A';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+		
+		case 11:abc='B';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 12:abc='C';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 13:abc='D';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+		
+		case 14:abc='E';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 15:abc='F';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+	}
+}
+
+void stc(  uint8_t status , char a)  // send status value to the computer
+{
+	uint8_t k;
+	while (!(UCSRA&(1<<UDRE)));
+	UDR= a;
+	while (!(UCSRA&(1<<UDRE)));
+	UDR= '\t';
+	k=(status)&0b11110000;
+	k=k>>4;
+	send(k);
+	k=(status)&0b00001111;
+	send(k);
+	while (!(UCSRA&(1<<UDRE)));
+	UDR= '\n';
+}
+
+void sendint(int o,char p) // send integer value to the computer
+{
+	uint8_t count=0;
+	while (!(UCSRA&(1<<UDRE)));
+	UDR= p;
+	int n=0;
+	int r;
+	while(o>0)
+	{
+		r=o%10;
+		n=n*10+r;
+		o=o/10;
+		count++;
+	}
+
+	while(count>0)
+	{
+		char abc;
+		r=n%10;
+		switch(r)
+		{
+			case 0:abc='0';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 1:abc='1';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 2:abc='2';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 3:abc='3';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 4:abc='4';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 5:abc='5';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 6:abc='6';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 7:abc='7';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 8:abc='8';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 9:abc='9';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+		}
+
+		n=n/10;
+		--count;
+	}
+	while (!(UCSRA&(1<<UDRE)));
+	UDR= '\n';
+}
+
+void spi(void)
+{
+	DDRB |=(1<<PINB5)|(1<<PINB7)|(1<<PINB4)|(1<<PINB1); // MOSI SCK SS CE
+	DDRB&=~(1<<PINB6);//MISO
+	SPCR|=(1<<SPE)|(1<<MSTR)|(1<<SPR0); //FOSC/32
+	PORTB&=~(1<<PINB1);//CE
+}
+
+uint8_t  spi_transceiver ( uint8_t  val )  //uint8t transfer
+{
+	SPDR=val;
+	while(!(SPSR&(1<<SPIF)));
+	return (SPDR);
+}
+
+uint8_t read_byte(uint8_t reg)
+{
+	PORTB&=~(1<<PINB4);
+	spi_transceiver(R_REGISTER|reg);
+	reg=spi_transceiver(0xFF);
+	PORTB|=(1<<PINB4);
+	return reg;
+}
+
+uint8_t writenrf(uint8_t reg, uint8_t data)
+{
+	PORTB&=~(1<<PINB4);
+	uint8_t status=	spi_transceiver(W_REGISTER|(REGISTER_MASK&reg));
+	spi_transceiver(data);
+	PORTB|=(1<<PINB4);
+	return status ;
+}
+
+void flush_tx(void)
+{
+	PORTB&=~(1<<PINB4);
+	spi_transceiver(FLUSH_TX);
+	PORTB|=(1<<PINB4);
+}
+
+void flush_Rx(void)
+{
+	PORTB&=~(1<<PINB4);
+	spi_transceiver(FLUSH_RX);
+	PORTB|=(1<<PINB4);
+}
+
+void receive(void)  // updates global variable x and y dont return anything just update two variables when u call it
+{
+	uint8_t d1, d2, d3, d4;
+	PORTB&=~(1<<PINB4);
+	spi_transceiver(R_RX_PAYLOAD);
+	d1=spi_transceiver(0xFF);
+	d2=spi_transceiver(0xFF);
+	d3=spi_transceiver(0xFF);
+	d4=spi_transceiver(0xFF);
+	gear=spi_transceiver(0xFF);
+	PORTB|=(1<<PINB4);
+	
+	_delay_ms(20);
+	flush_Rx();
+	_delay_ms(20);
+	
+	x=d1;
+	x|=d2<<8;
+	y=d3;
+	y|=d4<<8;
+	
+	_delay_ms(20);
+	flush_Rx();
+	_delay_ms(20);
+}
+
+void nrf24l01_int(void)
+{
+	writenrf(EN_AA,0x01);
+	writenrf(EN_RXADDR,0x01);
+	writenrf(SETUP_AW,0x03);
+	writenrf(RF_CH,0x78);
+	writenrf(RF_SETUP,0x06); //0b00000110
+	writenrf(FEATURE ,0x00);    // could be written to 0x01;
+
+	PORTB&=~(1<<PINB4);
+	spi_transceiver(W_REGISTER+RX_ADDR_P0);
+	spi_transceiver(0X01);
+	spi_transceiver(0x01);
+	spi_transceiver(0x01);
+	spi_transceiver(0x01);
+	spi_transceiver(0x01);
+	PORTB|=(1<<PINB4);
+
+	PORTB&=~(1<<PINB4);
+	spi_transceiver(W_REGISTER+TX_ADDR);
+	spi_transceiver(0x01);
+	spi_transceiver(0x01);
+	spi_transceiver(0x01);
+	spi_transceiver(0x01);
+	spi_transceiver(0x01);
+	PORTB|=(1<<PINB4);
+	
+	writenrf(RX_PW_P0,0x05);
+	writenrf(CONFIG,0x7F);
+}
+
+void UART_Initialize(unsigned int UBRR_value)
+{
+	UBRRH |= (unsigned char)(UBRR_value>>8);
+	UBRRL |= (unsigned char)UBRR_value;
+	UCSRB |= (1<<RXEN) | (1<<TXEN);
+	UCSRC |= (1<<URSEL) | (1<<USBS) | (1 << UCSZ1) | (1 << UCSZ0);
+}
+
+unsigned char UART_Receive()
+{
+	while(!(UCSRA & (1<<RXC)));
+	unsigned char receivedata = UDR;
+	return receivedata;
+}
+
+int octant(int p, int q)
+{
+	int c=0;
+	if(p==0 && q==0) c=0;
+	else if(p>=0 && q<=0)
+	{
+		if(p+q>0) c=1;
+		else c=2;
+	}
+	else if(p<=0 && q<=0)
+	{
+		if(p-q>0) c=3;
+		else c=4;
+	}
+	else if(p<=0 && q>0)
+	{
+		if(p+q>0) c=6;
+		else c=5;
+	}
+	else if(p>=0 && q>0)
+	{
+		if(p-q>0) c=8;
+		else c=7;
+	}
+	return c;
+}
+
+void direction(int z)
+{
+	if(z==5) z=8;
+	else if(z==8) z=5;
+	
+	if(z==0)
+	{
+		PORTD &= ~(1<<PIND2);
+		PORTD &= ~(1<<PIND3);
+	}
+	else if(z==1 || z==5)
+	{
+		PORTD &= ~(1<<PIND2);
+		PORTD |= (1<<PIND3);
+	}
+	else if(z==2 || z==3)
+	{
+		PORTD |= (1<<PIND2);
+		PORTD |= (1<<PIND3);
+	}
+	else if(z==4 || z==8)
+	{
+		PORTD |= (1<<PIND2);
+		PORTD &= ~(1<<PIND3);
+	}
+	else if(z==6 || z==7)
+	{
+		PORTD &= ~(1<<PIND2);
+		PORTD &= ~(1<<PIND3);
+	}
+}
+
+int main(void)
+{
+	TCCR1A|= (1<<WGM10)|(1<<WGM11)|(1<<COM1A1)|(1<<COM1B1);
+	TCCR1B|= (1<<WGM12)|(1<<CS10);
+	DDRD |= 1<<PIND4; //right
+	DDRD |= 1<<PIND5; //left
+	DDRD |= 1<<PIND2 | 1<<PIND3;
+	PORTD &= ~(1<<PIND2); //right
+	PORTD &= ~(1<<PIND3); //left
+	
+	UCSRC &=~(1<<URSEL);
+	unsigned int  h = 51;
+	UBRRH=(unsigned char)(h>>8);
+	UBRRL=(unsigned char)h;
+	UCSRC |=(1<<URSEL)|(1<<UCSZ1)|(1<<UCSZ0);
+	UCSRB &=~(1<<UCSZ2);
+	UCSRC &=(1<<UMSEL)& ~(1<<UPM1)& ~(1<<UPM0)&(1<<USBS);
+	UCSRB |=(1<<TXEN);
+	spi();
+	//UART_Initialize(12);
+	
+	while (1)
+	{
+		PORTB|=(1<<PINB1);
+		nrf24l01_int();
+		receive();
+		
+		sendint(x,'a');
+		sendint(y,'b');
+		//sendint(gear,'g');
+		/*
+		if(x==lastx)
+		{
+			xi++;
+		}
+		else
+		{
+			xi=0;
+			lastx=x;
+		}
+		if(y==lasty)
+		{
+			yi++;
+		}
+		else
+		{
+			yi=0;
+			lasty=y;
+		}
+		
+		if((xi>235) || (yi>235))
+		{
+			x=512;
+			y=512;
+		}
+		*/
+		//sendint(x,'c');
+		//sendint(y,'d');
+		//sendint(gear,'g');
+		status=read_byte(STATUS);
+		stc(status, 's');
+		
+		if(status==0x4E || status==0x4F)
+		{
+			x=512;
+			y=512;
+		}
+		
+		{
+			pwmx=(x-512);
+			pwmy=(y-512);
+			
+			a=abs(pwmx);
+			b=abs(pwmy);
+			if(a<=50) pwmx=0;
+			if(b<=50) pwmy=0;
+			
+			q=octant(pwmx,pwmy);
+			direction(q);
+			
+			pwmx=pwmx*2;
+			pwmy=pwmy*2;
+			
+			a=abs(pwmx+pwmy);
+			b=abs(pwmx-pwmy);
+			if(a>1023) a=1023;
+			if(b>1023) b=1023;
+			
+			if(gear==0b00000001)
+			{
+				m=a*0.25;
+				n=b*0.25;
+				//sendint(256,'g');
+			}
+			else if(gear==0b00000010)
+			{
+				m=a*0.5;
+				n=b*0.5;
+				//sendint(512,'g');
+			}
+			else if(gear==0b00000011)
+			{
+				m=a*0.75;
+				n=b*0.75;
+				//sendint(768,'g');
+			}
+			else if(gear==0b00000100)
+			{
+				m=a;
+				n=b;
+				//sendint(1023,'g');
+			}
+		}
+		OCR1B=(m); //right
+		OCR1A=(n); //left
+	}
+}

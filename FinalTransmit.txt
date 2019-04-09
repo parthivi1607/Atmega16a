@@ -1,0 +1,185 @@
+/*
+ * nRFmotorcodeGearBJMaster.c
+ *
+ * Created: 4/2/2019 10:45:14 PM
+ * Author : DELL
+ */ 
+
+#include <avr/io.h>
+#include "C:\Users\DELL\Documents\Atmel Studio\7.0\Parthivi Atmega16a\nRF24L01+\nRF24L01+\library.c"
+#include <util\delay.h>
+#include <avr\interrupt.h>
+
+uint8_t receiveval, x1, x2, y1, y2;
+uint8_t gear0, gear1, gear2, gear3, gear;
+uint16_t x,y;
+
+void spi(void)
+{
+	DDRB |=(1<<PINB5)|(1<<PINB7)|(1<<PINB4)|(1<<PINB1); // MOSI SCK SS CE
+	DDRB&=~(1<<PINB6);//MISO
+	SPCR|=(1<<SPE)|(1<<MSTR)|(1<<SPR0); //FOSC/32
+	DDRB|=(1<<PINB4); // SS HIGH
+	PORTB &=~(1<<PINB1);//CE
+}
+
+uint8_t  spi_transceiver ( uint8_t  val )  //uint8t transfer
+{
+	SPDR=val;
+	while(!(SPSR&(1<<SPIF)));
+	return (SPDR);
+}
+
+uint8_t read_byte(uint8_t reg)
+{
+	PORTB&=~(1<<PINB4);
+	//spi_transceiver(R_REGISTER|(REGISTER_MASK&reg));
+	spi_transceiver(R_REGISTER|reg);
+	reg=spi_transceiver(0xFF);
+	PORTB|=(1<<PINB4);
+	return reg;
+}
+
+uint8_t writenrf(uint8_t reg, uint8_t data)
+{
+	PORTB&=~(1<<PINB4);
+	uint8_t status=	spi_transceiver(W_REGISTER|(REGISTER_MASK&reg));
+	spi_transceiver(data);
+	PORTB|=(1<<PINB4);
+	return status ;
+}
+
+void flush_tx(void)
+{
+	PORTB&=~(1<<PINB4);
+	spi_transceiver(FLUSH_TX);
+	PORTB|=(1<<PINB4);
+}
+
+void flush_Rx(void)
+{
+	PORTB&=~(1<<PINB4);
+	spi_transceiver(FLUSH_RX);
+	PORTB|=(1<<PINB4);
+}
+
+void nrf24l01_int(void)
+{
+	writenrf(EN_AA,0x01);
+	writenrf(EN_RXADDR,0x01);
+	writenrf(SETUP_AW,0x03);
+	writenrf(RF_CH,0x78);
+	writenrf(RF_SETUP,0x06); //00000110
+	writenrf(FEATURE,0x00);
+	
+	PORTB&=~(1<<PINB4);
+	spi_transceiver(W_REGISTER+RX_ADDR_P0);
+	spi_transceiver(0X01);
+	spi_transceiver(0x01);
+	spi_transceiver(0x01);
+	spi_transceiver(0x01);
+	spi_transceiver(0x01);
+	PORTB|=(1<<PINB4);
+
+	PORTB&=~(1<<PINB4);
+	spi_transceiver(W_REGISTER+TX_ADDR);
+	spi_transceiver(0x01);
+	spi_transceiver(0x01);
+	spi_transceiver(0x01);
+	spi_transceiver(0x01);
+	spi_transceiver(0x01);
+	PORTB|=(1<<PINB4);
+
+	writenrf(CONFIG,0x7E);
+	writenrf(SETUP_RETR,0x14);
+	writenrf(STATUS,0x7E);
+}
+
+void transmit( uint16_t p, uint16_t q, uint8_t g) 
+{
+	uint8_t d1, d2, d3, d4;
+	d1=p;
+	d2=p>>8;
+	d3=q;
+	d4=q>>8;
+	PORTB&=~(1<<PINB4);
+	spi_transceiver(W_TX_PAYLOAD);
+	spi_transceiver(d1);
+	spi_transceiver(d2);
+	spi_transceiver(d3);
+	spi_transceiver(d4);
+	spi_transceiver(g);
+	PORTB|=(1<<PINB4);
+	_delay_ms(20);
+	flush_tx();
+}
+
+void UART_Initialize(unsigned int UBRR_value)
+{
+	UBRRH |= (unsigned char)(UBRR_value>>8);
+	UBRRL |= (unsigned char)UBRR_value;
+	UCSRB |= (1<<RXEN) | (1<<TXEN);
+	UCSRC |= (1<<URSEL) | (1<<USBS) | (1 << UCSZ1) | (1 << UCSZ0);
+}
+
+unsigned char UART_Receive()
+{
+	while(!(UCSRA & (1<<RXC)));
+	unsigned char receivedata = UDR;
+	return receivedata;
+}
+
+void values()
+{
+	receiveval = UART_Receive();
+	if((receiveval & 0b11000000)==0b00000000)
+	{
+		y2=receiveval;
+		gear3=y2&0b00100000;
+		gear3=gear3>>2;
+		y2=y2&0b00011111;
+	}
+	else if((receiveval & 0b11000000)==0b01000000)
+	{
+		y1=receiveval;
+		gear2=y1&0b00100000;
+		gear2=gear2>>3;
+		y1=y1&0b00011111;
+	}
+	else if((receiveval & 0b11000000)==0b10000000)
+	{
+		x1=receiveval;
+		gear0=x1&0b00100000;
+		gear0=gear0>>5;
+		x1=x1&0b00011111;
+	}
+	else if((receiveval & 0b11000000)==0b11000000)
+	{
+		x2=receiveval;
+		gear1=x2&0b00100000;
+		gear1=gear1>>4;
+		x2=x2&0b00011111;
+	}
+}
+
+int main(void)
+{
+	UART_Initialize(12);
+	spi();
+	
+	while (1)
+	{
+		values();
+		values();
+		values();
+		values();
+		x = (x2<<5)|x1;
+		y = (y2<<5)|y1;
+		y=1023-y;
+		gear=gear0|gear1|gear2|gear3;
+		
+		PORTB |=(1<<PINB1);
+		nrf24l01_int();
+		transmit(x,y,gear);
+	}
+}
