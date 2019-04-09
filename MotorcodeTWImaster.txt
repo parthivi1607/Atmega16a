@@ -1,0 +1,108 @@
+/*
+ * MotorcodeTWIMaster.c
+ *
+ * Created: 2/26/2019 10:48:55 PM
+ * Author : DELL
+ */ 
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+
+uint8_t x1,x2,y1,y2,v1,v2,joyval,lv;
+uint16_t res;
+
+void ADC_Initialize()
+{
+	ADMUX |= 1<<REFS0;
+	ADMUX |= 1<<ADLAR;
+	ADCSRA |= 1<<ADPS2;
+	ADCSRA |= 1<<ADEN;
+	ADCSRA |= 1<<ADIE;
+	sei();
+	ADCSRA |= 1<<ADSC;
+}
+
+void TWIMaster_Init()
+{
+	TWBR=0x00;    // Bit rate
+	TWSR=0x00;    // Setting prescalar bits
+	TWCR = 1<<TWEN;
+}
+
+void TWI_start(void)
+{
+	// Clear TWI interrupt flag, Put start condition on SDA
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+	while((TWCR & (1<<TWINT))==0); // Wait till start condition is transmitted
+	//while((TWSR & 0xF8)!= 0x08); // Check if start is transmitted
+}
+
+void TWI_write_address(unsigned char addr)
+{
+	TWDR=addr;    // Address and read instruction
+	TWCR = (1<<TWINT)|(1<<TWEN);    // Clear TWI interrupt flag
+	while (!(TWCR & (1<<TWINT))); // Wait till complete TWDR byte received
+	//while((TWSR & 0xF8)!= 0x18);  // Check for the acknowledgement
+}
+
+void TWI_write_data(unsigned char data)
+{
+	TWDR=data;    // put data in TWDR
+	TWCR = (1<<TWINT)|(1<<TWEN);    // Clear TWI interrupt flag
+	while (!(TWCR & (1<<TWINT))); // Wait till complete TWDR byte transmitted
+	//while((TWSR & 0xF8) != 0x28); // Check for the acknowledgement
+}
+
+void TWI_stop(void)
+{
+	// Clear TWI interrupt flag, Put stop condition on SDA, Enable TWI
+	TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWSTO);
+	//while(!(TWCR & (1<<TWINT)));  // Wait till stop condition is transmitted
+}
+
+int main(void)
+{
+	TWIMaster_Init();
+	ADC_Initialize();
+	TWI_start();
+	TWI_write_address(0x10);
+	
+	while (1)
+	{
+		TWI_write_data(x1);
+		TWI_write_data(x2);
+		TWI_write_data(y1);
+		TWI_write_data(y2);
+	}
+}
+
+ISR(ADC_vect)
+{
+	lv = ADCL;
+	res = (ADCH<<2 | lv>>6);
+	joyval = res; //8bits --------
+    v1=joyval<<2; //6bits ------00
+	joyval=res>>6; //4bits 0000----
+	v2=joyval<<2; //4bits 00----00
+	
+	switch(ADMUX)
+	{
+		case 0x60:
+		{
+			x1=(v1 | 0b00000000); //6bits
+		    x2=(v2 | 0b00000001); //4bits
+		    ADMUX = 0x61;
+			break;	
+		}
+		
+		case 0x61:
+		{
+			y1=(v1 | 0b00000010);
+		    y2=(v2 | 0b00000011);
+		    ADMUX = 0x60;
+		    break;
+		}
+	}
+	
+	ADCSRA |= 1<<ADSC;
+}

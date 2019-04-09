@@ -1,0 +1,354 @@
+/*
+ * MotorcodeTWISlave.c
+ *
+ * Created: 2/26/2019 10:50:07 PM
+ * Author : DELL
+ */ 
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <math.h>
+
+uint8_t receiveval, x1, x2, y1, y2, data;
+uint16_t x,y;
+int pwmx,pwmy,a,b,q;
+
+void send( uint8_t a) // just a helper function dont need to call it
+{
+	char  abc;
+	switch(a)
+	{
+		case 0: abc='0';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 1:abc='1';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 2:abc='2';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 3:abc='3';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 4:abc='4';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 5:abc='5';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 6:abc='6';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 7:abc='7';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 8:abc='8';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 9:abc='9';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 10:abc='A';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+		
+		case 11:abc='B';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 12:abc='C';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 13:abc='D';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+		
+		case 14:abc='E';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+
+		case 15:abc='F';
+		while (!(UCSRA&(1<<UDRE)));
+		UDR= abc;
+		break;
+	}
+}
+
+void stc(  uint8_t status , char a)  // send status value to the computer
+{
+	uint8_t k;
+	while (!(UCSRA&(1<<UDRE)));
+	UDR= a;
+	while (!(UCSRA&(1<<UDRE)));
+	UDR= '\t';
+	k=(status)&0b11110000;
+	k=k>>4;
+	send(k);
+	k=(status)&0b00001111;
+	send(k);
+	while (!(UCSRA&(1<<UDRE)));
+	UDR= '\n';
+}
+
+void sendint(int o,char p) // send integer value to the computer
+{
+	uint8_t count=0;
+	while (!(UCSRA&(1<<UDRE)));
+	UDR= p;
+	int n=0;
+	int r;
+	while(o>0)
+	{
+		r=o%10;
+		n=n*10+r;
+		o=o/10;
+		count++;
+	}
+
+	while(count>0)
+	{
+		char abc;
+		r=n%10;
+		switch(r)
+		{
+			case 0:abc='0';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 1:abc='1';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 2:abc='2';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 3:abc='3';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 4:abc='4';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 5:abc='5';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 6:abc='6';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 7:abc='7';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 8:abc='8';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+
+			case 9:abc='9';
+			while (!(UCSRA&(1<<UDRE)));
+			UDR= abc;
+			break;
+		}
+
+		n=n/10;
+		--count;
+	}
+	while (!(UCSRA&(1<<UDRE)));
+	UDR= '\n';
+}
+
+int octant(int p, int q)
+{
+	int c=0;
+	if(p==0 && q==0) c=0;
+	else if(p>=0 && q<=0)
+	{
+		if(p+q>0) c=1;
+		else c=2;
+	}
+	else if(p<=0 && q<=0)
+	{
+		if(p-q>0) c=3;
+		else c=4;
+	}
+	else if(p<=0 && q>0)
+	{
+		if(p+q>0) c=6;
+		else c=5;
+	}
+	else if(p>=0 && q>0)
+	{
+		if(p-q>0) c=8;
+		else c=7;
+	}
+	return c;
+}
+
+void direction(int z)
+{
+	if(z==5) z=8;
+	else if(z==8) z=5;
+	
+	if(z==0)
+	{
+		PORTB &= ~(1<<PINB0);
+		PORTB &= ~(1<<PINB1);
+	}
+	else if(z==1 || z==5)
+	{
+		PORTB &= ~(1<<PINB1);
+		PORTB |= (1<<PINB0);
+	}
+	else if(z==2 || z==3)
+	{
+		PORTB |= (1<<PINB0);
+		PORTB |= (1<<PINB1);
+	}
+	else if(z==4 || z==8)
+	{
+		PORTB |= (1<<PINB1);
+		PORTB &= ~(1<<PINB0);
+	}
+	else if(z==6 || z==7)
+	{
+		PORTB &= ~(1<<PINB0);
+		PORTB &= ~(1<<PINB1);
+	}
+}
+
+void TWISlave_Init(void) // Function to initialize slave
+{   
+	TWCR = 1<<TWEN;
+	TWAR=0x10;    // Fill slave address to TWAR
+}
+
+void TWI_read_address(void) //Function to match the slave address and slave direction bit(read)
+{
+	//Send acknowledgment, Enable TWI, Clear TWI interrupt flag
+	TWCR = (1<<TWEA)|(1<<TWINT)|(1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));  // Wait for TWINT flag
+	//while((TWSR & 0xF8)!=0x60);
+}
+
+uint8_t TWI_read_data(void)
+{
+	// Clear TWI interrupt flag, send acknowledgment, Enable TWI
+	TWCR = (1<<TWINT)|(1<<TWEA)|(1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));    // Wait for TWINT flag
+	//while((TWSR & 0xF8)!=0x80);        // Wait for acknowledgement
+	data=TWDR;                    // Get value from TWDR
+	return data;
+}
+
+int main(void)
+{
+    TCCR1A|= (1<<WGM10)|(1<<WGM11)|(1<<COM1A1)|(1<<COM1B1);
+    TCCR1B|= (1<<WGM12)|(1<<CS10);
+    DDRD |= 1<<PIND4; //right
+    DDRD |= 1<<PIND5; //left
+    DDRB |= 1<<PINB0 | 1<<PINB1;
+    PORTB &= ~(1<<PINB0); //right
+    PORTB &= ~(1<<PINB1); //left
+	
+	TWISlave_Init();
+	TWI_read_address();
+	
+    while (1) 
+    {
+		receiveval = TWI_read_data();
+		if((receiveval & 0b00000011)==0b00000000)
+		{
+			x1=receiveval;
+			x1=x1>>2;
+		}
+		else if((receiveval & 0b00000011)==0b00000001)
+		{
+			x2=receiveval;
+			x2=x2>>2;
+		}
+		else if((receiveval & 0b00000011)==0b00000010)
+		{
+			y1=receiveval;
+			y1=y1>>2;
+		}
+		else if((receiveval & 0b00000011)==0b00000011)
+		{
+			y2=receiveval;
+			y2=y2>>2;
+		}
+		
+		x=x2;
+		x=x<<6 | x1;
+		y=y2;
+		y=y<<6 | y1;
+		
+		if(x>1000) x=1023;
+		if(y>1000) y=1023;
+		
+		if(x<50) x=0;
+		if(y<50) y=0;
+		
+		pwmx=(x-512);
+		pwmy=(y-512);
+		
+		a=abs(pwmx);
+		b=abs(pwmy);
+		if(a<=50) pwmx=0;
+		if(b<=50) pwmy=0;
+		
+		q=octant(pwmx,pwmy);
+		direction(q);
+		
+		pwmx=pwmx*2;
+		pwmy=pwmy*2;
+		
+		a=abs(pwmx+pwmy);
+		b=abs(pwmx-pwmy);
+		if(a>1023) a=1023;
+		if(b>1023) b=1023;
+		
+		OCR1B=(a); //right
+		OCR1A=(b); //left
+		
+		sendint(a,'a');
+		sendint(b,'b');
+    }
+}
